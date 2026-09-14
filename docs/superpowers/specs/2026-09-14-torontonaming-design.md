@@ -86,11 +86,19 @@ approach) — this is a soft guard, not real spam protection.
 
 Two source lists, merged into one flat array at build/load time:
 
-1. **Official City of Toronto neighbourhoods** (~140 names) — reuse
-   `AREA_NAME` polygons from the GeoJSON already present in
-   `2026-personal-eastwesttoronto/data/`. Reference point per name =
-   polygon centroid (same `turf.centerOfMass` approach eastwesttoronto
-   already uses for labels).
+1. **Official City of Toronto neighbourhoods** (158 names, current
+   2021-consolidation boundary set) — download fresh from the City of
+   Toronto open data portal (open.toronto.ca, CKAN package
+   `neighbourhoods`, the plain `Neighbourhoods - 4326.geojson`
+   resource — not the "historical 140" resource, which suffixes names
+   with numeric codes like "Brookhaven-Amesbury (30)"), saved as
+   `data/toronto-neighbourhoods.geojson`. Note: this file is *not*
+   available to reuse from `2026-personal-eastwesttoronto` — it was
+   removed there during their refactor from per-neighbourhood
+   colouring to a grid-based heatmap, so it must be re-downloaded.
+   `AREA_NAME` is the name field. Reference point per name = polygon
+   centroid (arithmetic mean of exterior-ring vertices — see `geo.js`
+   in the plan).
 2. **Curated informal/contested names** (~15-25 names) — names people
    actually use that aren't well captured by the official list (The
    Annex, Leslieville, Corktown, Liberty Village, The Junction, etc.,
@@ -100,10 +108,12 @@ Two source lists, merged into one flat array at build/load time:
    curated name that's redundant with an official name at the same
    location.
 
-Both lists are combined into one `data/name-registry.json` (or
-computed at load time from the two source files — implementation
-plan will decide) giving every assignable name a `{ name, lat, lng,
-colorIndex }`.
+Both lists are combined client-side at load time into one in-memory
+registry giving every assignable name a `{ name, lat, lng,
+colorIndex }` — no separate build step or committed merged-JSON
+artifact, consistent with eastwesttoronto's no-build-step approach.
+The name universe (~180 entries: 158 official + ~20-24 curated) is small enough that computing
+this once per page load is trivial.
 
 ### Colour assignment
 
@@ -113,10 +123,9 @@ names far apart in the city can safely share a colour, as the
 reference screenshot does), colours are assigned once via a greedy
 proximity-graph colouring: for each name, pick the first palette
 colour not already used by another name within some radius (e.g.
-~3km). This produces a small, stable `name → colour` mapping that can
-be computed at build/dev time and committed as a static JSON file
-(simplest — no need to recompute client-side, since the name list
-itself is fixed).
+~3km). This is deterministic given the same name list and palette, so
+it's computed client-side at load time alongside the merged registry
+above — no separate build artifact needed.
 
 ---
 
@@ -186,9 +195,8 @@ eastwesttoronto already does.
 ├── grid-worker.js
 ├── data/
 │   ├── toronto-boundary.geojson       (copied from eastwesttoronto)
-│   ├── toronto-neighbourhoods.geojson (official AREA_NAME polygons, copied from eastwesttoronto)
-│   ├── curated-names.json             (hand-authored informal/contested names)
-│   └── name-registry.json             (merged name list with assigned colours)
+│   ├── toronto-neighbourhoods.geojson (official AREA_NAME polygons, downloaded fresh from open.toronto.ca)
+│   └── curated-names.json             (hand-authored informal/contested names)
 ├── docs/
 │   └── superpowers/
 │       └── specs/
