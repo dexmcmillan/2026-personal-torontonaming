@@ -34,7 +34,7 @@ self.onmessage = ({ data }) => {
       rgba[pixelBase + 2] = blend.b;
       rgba[pixelBase + 3] = Math.round(blend.opacity * 255);
 
-      names[idx] = dominantName(cellLatLng, submissions, maxRadiusKm);
+      names[idx] = dominantName(cellLatLng, submissions, maxRadiusKm, colorLookup);
     }
   }
 

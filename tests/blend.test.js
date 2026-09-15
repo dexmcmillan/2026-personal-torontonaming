@@ -32,13 +32,15 @@ test('computeCellBlend: returns null when no submissions are within range', () =
 test('dominantName: returns null when no submissions are within range', () => {
   const cell = { lat: 43.65, lng: -79.40 };
   const submissions = [{ lat: 44.50, lng: -79.40, name: 'Far' }];
-  assert.equal(dominantName(cell, submissions, 1.5), null);
+  const colorLookup = new Map([['Far', { r: 1, g: 1, b: 1 }]]);
+  assert.equal(dominantName(cell, submissions, 1.5, colorLookup), null);
 });
 
 test('dominantName: a single nearby submission wins', () => {
   const cell = { lat: 43.65, lng: -79.40 };
   const submissions = [{ ...cell, name: 'Solo' }];
-  assert.equal(dominantName(cell, submissions, 1.5), 'Solo');
+  const colorLookup = new Map([['Solo', { r: 1, g: 1, b: 1 }]]);
+  assert.equal(dominantName(cell, submissions, 1.5, colorLookup), 'Solo');
 });
 
 test('dominantName: a closer name wins over a farther name', () => {
@@ -47,18 +49,51 @@ test('dominantName: a closer name wins over a farther name', () => {
     { lat: 43.6505, lng: -79.40, name: 'Closer' },
     { lat: 43.660, lng: -79.40, name: 'Farther' },
   ];
-  assert.equal(dominantName(cell, submissions, 1.5), 'Closer');
+  const colorLookup = new Map([
+    ['Closer', { r: 1, g: 0, b: 0 }],
+    ['Farther', { r: 0, g: 0, b: 1 }],
+  ]);
+  assert.equal(dominantName(cell, submissions, 1.5, colorLookup), 'Closer');
 });
 
 test('dominantName: many weak-weight submissions of one name still lose to one strong nearby submission of another', () => {
   const cell = { lat: 43.65, lng: -79.40 };
   const submissions = [
     { ...cell, name: 'Strong' }, // distance 0, weight 1
-    { lat: 43.6636, lng: -79.40, name: 'Weak' }, // ~1.49km away, weight ~0.00004
-    { lat: 43.6637, lng: -79.40, name: 'Weak' },
-    { lat: 43.6638, lng: -79.40, name: 'Weak' },
+    { lat: 43.6630, lng: -79.40, name: 'Weak' }, // ~1.44km away, weight ~0.0016
+    { lat: 43.6632, lng: -79.40, name: 'Weak' }, // ~1.46km away
+    { lat: 43.6634, lng: -79.40, name: 'Weak' }, // ~1.47km away
   ];
-  assert.equal(dominantName(cell, submissions, 1.5), 'Strong');
+  const colorLookup = new Map([
+    ['Strong', { r: 1, g: 0, b: 0 }],
+    ['Weak', { r: 0, g: 0, b: 1 }],
+  ]);
+  assert.equal(dominantName(cell, submissions, 1.5, colorLookup), 'Strong');
+});
+
+test('dominantName: a name absent from colorLookup cannot win even with more weight', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { ...cell, name: 'Untrusted' },        // distance 0, would win on weight alone
+    { lat: 43.660, lng: -79.40, name: 'Registered' }, // ~1.1km away, weaker
+  ];
+  const colorLookup = new Map([['Registered', { r: 1, g: 1, b: 1 }]]);
+  assert.equal(dominantName(cell, submissions, 1.5, colorLookup), 'Registered');
+});
+
+test('dominantName: accumulated weight from several submissions can outweigh one closer single submission', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { lat: 43.6510, lng: -79.40, name: 'CloserButAlone' },
+    { lat: 43.6530, lng: -79.40, name: 'FartherButMany' },
+    { lat: 43.6531, lng: -79.40, name: 'FartherButMany' },
+    { lat: 43.6532, lng: -79.40, name: 'FartherButMany' },
+  ];
+  const colorLookup = new Map([
+    ['CloserButAlone', { r: 1, g: 0, b: 0 }],
+    ['FartherButMany', { r: 0, g: 0, b: 1 }],
+  ]);
+  assert.equal(dominantName(cell, submissions, 1.5, colorLookup), 'FartherButMany');
 });
 
 test('computeCellBlend: a cell exactly at a single submission takes on its full colour', () => {

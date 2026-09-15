@@ -111,8 +111,7 @@ body {
   font-size: 0.88rem;
 }
 
-#name-options li:hover,
-#name-options li.highlighted {
+#name-options li:hover {
   background: rgba(255,255,255,0.1);
 }
 

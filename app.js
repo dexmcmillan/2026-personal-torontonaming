@@ -36,7 +36,7 @@ map.getPane('labelsPane').style.zIndex = 650;
 map.getPane('labelsPane').style.pointerEvents = 'none';
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   maxZoom: 19,
 }).addTo(map);
 
@@ -156,12 +156,18 @@ const HeatmapCanvasLayer = L.Layer.extend({
 let nameLabelMarkers = [];
 const LABEL_OPACITY_THRESHOLD = 0.5; // only label cells confident enough to read as "settled"
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function updateNameLabels(rgba, names) {
   nameLabelMarkers.forEach(m => map.removeLayer(m));
   nameLabelMarkers = [];
 
-  // Group confidently-coloured cells by exact colour, then place one label
-  // per connected component so a name isn't repeated dozens of times.
+  // Group cells that share the same dominant name into connected components,
+  // then place one label per component so a name isn't repeated dozens of times.
   const total = GRID_COLS * GRID_ROWS;
   const confident = new Uint8Array(total);
   const nameAt = new Array(total).fill(null);
@@ -205,7 +211,7 @@ function updateNameLabels(rgba, names) {
     const marker = L.marker([sumLat / count, sumLng / count], {
       icon: L.divIcon({
         className: 'name-label',
-        html: `<span>${name}</span>`,
+        html: `<span>${escapeHtml(name)}</span>`,
         iconSize: [0, 0],
         iconAnchor: [0, 0],
       }),
@@ -235,15 +241,21 @@ function initWorker() {
 async function loadAggregates() {
   const snapshot = await getDocs(collection(db, COLLECTION));
 
+  const registryNames = new Set(registry.map(e => e.name));
   const submissions = [];
   snapshot.forEach(docSnap => {
     const d = docSnap.data();
-    if (d.lat != null && d.lng != null && d.name) {
+    if (Number.isFinite(d.lat) && Number.isFinite(d.lng) &&
+        typeof d.name === 'string' && registryNames.has(d.name)) {
       submissions.push({ lat: d.lat, lng: d.lng, name: d.name });
     }
   });
 
-  if (submissions.length === 0) return;
+  if (submissions.length === 0) {
+    heatmapLayer.update(new Uint8ClampedArray(GRID_COLS * GRID_ROWS * 4));
+    updateNameLabels(new Uint8ClampedArray(GRID_COLS * GRID_ROWS * 4), new Array(GRID_COLS * GRID_ROWS).fill(null));
+    return;
+  }
 
   const registryForWorker = registry.map(({ name, color }) => ({ name, color }));
   const maskCopy = inTorontoMask.slice();
@@ -271,30 +283,36 @@ async function loadBoundary() {
 
   renderMask();
   initGrid();
-  document.getElementById('loading').classList.add('hidden');
 }
 
 async function init() {
-  initWorker();
-  heatmapLayer = new HeatmapCanvasLayer();
-  heatmapLayer.addTo(map);
+  try {
+    initWorker();
+    heatmapLayer = new HeatmapCanvasLayer();
+    heatmapLayer.addTo(map);
 
-  await loadBoundary();
+    await loadBoundary();
 
-  const [neighbourhoodsRes, curatedRes] = await Promise.all([
-    fetch('data/toronto-neighbourhoods.geojson'),
-    fetch('data/curated-names.json'),
-  ]);
-  const officialFeatureCollection = await neighbourhoodsRes.json();
-  const curatedNames = await curatedRes.json();
+    const [neighbourhoodsRes, curatedRes] = await Promise.all([
+      fetch('data/toronto-neighbourhoods.geojson'),
+      fetch('data/curated-names.json'),
+    ]);
+    const officialFeatureCollection = await neighbourhoodsRes.json();
+    const curatedNames = await curatedRes.json();
 
-  const rawRegistry = buildRegistry(officialFeatureCollection, curatedNames);
-  registry = assignColors(rawRegistry, PALETTE, ASSIGN_COLOR_RADIUS_KM).map(entry => ({
-    ...entry,
-    color: PALETTE[entry.colorIndex],
-  }));
+    const rawRegistry = buildRegistry(officialFeatureCollection, curatedNames);
+    registry = assignColors(rawRegistry, PALETTE, ASSIGN_COLOR_RADIUS_KM).map(entry => ({
+      ...entry,
+      color: PALETTE[entry.colorIndex],
+    }));
 
-  await loadAggregates();
+    await loadAggregates();
+
+    document.getElementById('loading').classList.add('hidden');
+  } catch (err) {
+    console.error('Failed to initialize app:', err);
+    document.querySelector('#loading p').textContent = 'Something went wrong loading the map. Please refresh.';
+  }
 }
 init();
 
@@ -331,11 +349,14 @@ map.on('click', e => {
   openPicker();
 });
 
+let toastTimer = null;
+
 function showToast(msg) {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
   toast.classList.remove('hidden');
-  setTimeout(() => toast.classList.add('hidden'), 3000);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add('hidden'), 3000);
 }
 
 function openPicker() {
@@ -438,29 +459,34 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
-  await addDoc(collection(db, COLLECTION), {
-    lat: pendingPin.lat,
-    lng: pendingPin.lng,
-    name: chosenName,
-    tenure: chosenTenure,
-    browserId: userId,
-    ts: serverTimestamp(),
-  });
+  try {
+    await addDoc(collection(db, COLLECTION), {
+      lat: pendingPin.lat,
+      lng: pendingPin.lng,
+      name: chosenName,
+      tenure: chosenTenure,
+      browserId: userId,
+      ts: serverTimestamp(),
+    });
 
-  incrementSubmissionCount();
-  lastSubmittedPin = pendingPin;
+    incrementSubmissionCount();
+    lastSubmittedPin = pendingPin;
 
-  closePicker();
-  showToast('Thanks! Your answer has been recorded.');
+    closePicker();
+    showToast('Thanks! Your answer has been recorded.');
 
-  btn.disabled = false;
-  btn.textContent = 'Submit my answer';
+    await loadAggregates();
 
-  await loadAggregates();
-
-  if (pinMarker) map.removeLayer(pinMarker);
-  pinMarker = L.marker(lastSubmittedPin, {
-    icon: L.divIcon({ className: 'pin-marker', html: '<div class="pin-dot pin-dot-mine"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
-    interactive: false,
-  }).addTo(map);
+    if (pinMarker) map.removeLayer(pinMarker);
+    pinMarker = L.marker(lastSubmittedPin, {
+      icon: L.divIcon({ className: 'pin-marker', html: '<div class="pin-dot pin-dot-mine"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+      interactive: false,
+    }).addTo(map);
+  } catch (err) {
+    console.error('Failed to submit answer:', err);
+    showToast('Something went wrong — please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit my answer';
+  }
 });
