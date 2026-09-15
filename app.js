@@ -1,8 +1,15 @@
 // app.js
+import { buildRegistry, assignColors, nearbyNames } from './names.js';
+import { PALETTE } from './palette.js';
+
 const TORONTO_CENTER = [43.7181, -79.3762];
 const TORONTO_ZOOM = 11;
 const GRID_COLS = 160;
 const GRID_ROWS = 160;
+const NEARBY_NAME_COUNT = 12;
+const ASSIGN_COLOR_RADIUS_KM = 3;
+
+let registry = [];
 
 const map = L.map('map', {
   zoomControl: true,
@@ -80,6 +87,19 @@ async function loadBoundary() {
 
 async function init() {
   await loadBoundary();
+
+  const [neighbourhoodsRes, curatedRes] = await Promise.all([
+    fetch('data/toronto-neighbourhoods.geojson'),
+    fetch('data/curated-names.json'),
+  ]);
+  const officialFeatureCollection = await neighbourhoodsRes.json();
+  const curatedNames = await curatedRes.json();
+
+  const rawRegistry = buildRegistry(officialFeatureCollection, curatedNames);
+  registry = assignColors(rawRegistry, PALETTE, ASSIGN_COLOR_RADIUS_KM).map(entry => ({
+    ...entry,
+    color: PALETTE[entry.colorIndex],
+  }));
 }
 init();
 
@@ -94,17 +114,25 @@ const pinIcon = L.divIcon({
 });
 
 map.on('click', e => {
-  if (!torontoFeature) return; // ignore clicks before boundary has loaded
+  if (!torontoFeature) return;
   if (!turf.booleanPointInPolygon(turf.point([e.latlng.lng, e.latlng.lat]), torontoFeature)) {
     showToast("That's outside Toronto — try clicking inside the boundary.");
     return;
   }
 
   pendingPin = { lat: e.latlng.lat, lng: e.latlng.lng };
+  chosenName = null;
+  chosenTenure = null;
 
   if (pinMarker) map.removeLayer(pinMarker);
   pinMarker = L.marker(e.latlng, { icon: pinIcon, interactive: false }).addTo(map);
 
+  document.getElementById('picker-step-name').classList.remove('hidden');
+  document.getElementById('picker-step-tenure').classList.add('hidden');
+  document.getElementById('name-search').value = '';
+  document.querySelectorAll('.tenure-btn').forEach(b => b.classList.remove('selected'));
+  updateSubmitEnabled();
+  populateNameOptions(pendingPin);
   openPicker();
 });
 
@@ -117,6 +145,50 @@ function showToast(msg) {
 
 function openPicker() {
   document.getElementById('picker-modal').classList.remove('hidden');
+}
+
+let chosenName = null;
+let chosenTenure = null;
+
+function updateSubmitEnabled() {
+  document.getElementById('btn-submit').disabled = !(chosenName && chosenTenure);
+}
+
+function populateNameOptions(pin) {
+  const options = nearbyNames(registry, pin, NEARBY_NAME_COUNT);
+  renderNameOptions(options);
+}
+
+function renderNameOptions(options) {
+  const list = document.getElementById('name-options');
+  list.innerHTML = '';
+  for (const entry of options) {
+    const li = document.createElement('li');
+    li.textContent = entry.name;
+    li.dataset.name = entry.name;
+    if (entry.name === chosenName) li.classList.add('selected');
+    li.addEventListener('click', () => selectName(entry.name));
+    list.appendChild(li);
+  }
+}
+
+document.getElementById('name-search').addEventListener('input', e => {
+  const query = e.target.value.trim().toLowerCase();
+  const nearby = nearbyNames(registry, pendingPin, NEARBY_NAME_COUNT);
+  const filtered = query
+    ? nearby.filter(entry => entry.name.toLowerCase().includes(query))
+    : nearby;
+  renderNameOptions(filtered);
+});
+
+function selectName(name) {
+  chosenName = name;
+  document.querySelectorAll('#name-options li').forEach(li => {
+    li.classList.toggle('selected', li.dataset.name === name);
+  });
+  updateSubmitEnabled();
+  document.getElementById('picker-step-name').classList.add('hidden');
+  document.getElementById('picker-step-tenure').classList.remove('hidden');
 }
 
 function closePicker() {
