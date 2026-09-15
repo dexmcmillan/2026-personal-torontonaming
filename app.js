@@ -31,9 +31,18 @@ const map = L.map('map', {
   minZoom: 10,
 }).setView(TORONTO_CENTER, TORONTO_ZOOM);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+map.createPane('labelsPane');
+map.getPane('labelsPane').style.zIndex = 650;
+map.getPane('labelsPane').style.pointerEvents = 'none';
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
   maxZoom: 19,
+}).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+  pane: 'labelsPane',
 }).addTo(map);
 
 map.createPane('heatmapPane');
@@ -43,10 +52,6 @@ map.getPane('heatmapPane').style.pointerEvents = 'none';
 map.createPane('maskPane');
 map.getPane('maskPane').style.zIndex = 300;
 map.getPane('maskPane').style.pointerEvents = 'none';
-
-map.createPane('labelsPane');
-map.getPane('labelsPane').style.zIndex = 650;
-map.getPane('labelsPane').style.pointerEvents = 'none';
 
 let torontoFeature = null;
 let gridBbox = null;
@@ -81,7 +86,7 @@ function renderMask() {
   if (!mask) return;
 
   L.geoJSON(mask, {
-    style: { fillColor: '#f0f0f0', fillOpacity: 0.45, color: '#888', weight: 1.5 },
+    style: { fillColor: '#0d0d0d', fillOpacity: 0.55, color: '#333', weight: 1.5 },
     pane: 'maskPane',
     interactive: false,
   }).addTo(map);
@@ -148,6 +153,72 @@ const HeatmapCanvasLayer = L.Layer.extend({
   },
 });
 
+let nameLabelMarkers = [];
+const LABEL_OPACITY_THRESHOLD = 0.5; // only label cells confident enough to read as "settled"
+
+function updateNameLabels(rgba, submissions) {
+  nameLabelMarkers.forEach(m => map.removeLayer(m));
+  nameLabelMarkers = [];
+
+  const colorToName = new Map(registry.map(e => [`${e.color.r},${e.color.g},${e.color.b}`, e.name]));
+
+  // Group confidently-coloured cells by exact colour, then place one label
+  // per connected component so a name isn't repeated dozens of times.
+  const total = GRID_COLS * GRID_ROWS;
+  const confident = new Uint8Array(total);
+  const nameAt = new Array(total).fill(null);
+
+  for (let i = 0; i < total; i++) {
+    const base = i * 4;
+    const alpha = rgba[base + 3] / 255;
+    if (alpha < LABEL_OPACITY_THRESHOLD) continue;
+    const key = `${rgba[base]},${rgba[base + 1]},${rgba[base + 2]}`;
+    const name = colorToName.get(key);
+    if (!name) continue;
+    confident[i] = 1;
+    nameAt[i] = name;
+  }
+
+  const visited = new Uint8Array(total);
+  for (let start = 0; start < total; start++) {
+    if (!confident[start] || visited[start]) continue;
+    const name = nameAt[start];
+    const queue = [start];
+    visited[start] = 1;
+    let sumLng = 0, sumLat = 0, count = 0, qi = 0;
+
+    while (qi < queue.length) {
+      const idx = queue[qi++];
+      sumLng += cellCentroids[idx * 2];
+      sumLat += cellCentroids[idx * 2 + 1];
+      count++;
+      const r = Math.floor(idx / GRID_COLS), c = idx % GRID_COLS;
+      for (const [nr, nc] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) {
+        if (nr < 0 || nr >= GRID_ROWS || nc < 0 || nc >= GRID_COLS) continue;
+        const ni = nr * GRID_COLS + nc;
+        if (confident[ni] && nameAt[ni] === name && !visited[ni]) {
+          visited[ni] = 1;
+          queue.push(ni);
+        }
+      }
+    }
+
+    if (count < 3) continue; // skip single-cell specks, too small to label legibly
+
+    const marker = L.marker([sumLat / count, sumLng / count], {
+      icon: L.divIcon({
+        className: 'name-label',
+        html: `<span>${name}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      }),
+      interactive: false,
+      pane: 'labelsPane',
+    }).addTo(map);
+    nameLabelMarkers.push(marker);
+  }
+}
+
 let heatmapLayer = null;
 let heatmapWorker = null;
 
@@ -158,7 +229,9 @@ function initWorker() {
   heatmapWorker = new Worker('grid-worker.js', { type: 'module' });
   heatmapWorker.onmessage = ({ data }) => {
     if (data.type !== 'result') return;
-    heatmapLayer.update(new Uint8ClampedArray(data.rgba));
+    const rgba = new Uint8ClampedArray(data.rgba);
+    heatmapLayer.update(rgba);
+    updateNameLabels(rgba, data.submissions);
   };
 }
 

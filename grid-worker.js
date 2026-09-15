@@ -35,5 +35,5 @@ self.onmessage = ({ data }) => {
     }
   }
 
-  self.postMessage({ type: 'result', rgba: rgba.buffer }, [rgba.buffer]);
+  self.postMessage({ type: 'result', rgba: rgba.buffer, submissions: data.submissions }, [rgba.buffer]);
 };
