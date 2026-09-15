@@ -1,6 +1,21 @@
 // app.js
 import { buildRegistry, assignColors, nearbyNames } from './names.js';
 import { PALETTE } from './palette.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDsCciW4Y2p50qYLOLkkdkINJY_d7vb1Pc",
+  authDomain: "neighbourhoods-66aef.firebaseapp.com",
+  projectId: "neighbourhoods-66aef",
+  storageBucket: "neighbourhoods-66aef.firebasestorage.app",
+  messagingSenderId: "228480970326",
+  appId: "1:228480970326:web:947c7da8183ba4b8c095f7"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+const COLLECTION = 'submissions';
 
 const TORONTO_CENTER = [43.7181, -79.3762];
 const TORONTO_ZOOM = 11;
@@ -72,6 +87,110 @@ function renderMask() {
   }).addTo(map);
 }
 
+const HeatmapCanvasLayer = L.Layer.extend({
+  onAdd(map) {
+    this._map = map;
+    this._canvas = L.DomUtil.create('canvas', 'heatmap-canvas');
+    this._canvas.style.position = 'absolute';
+    this._canvas.style.pointerEvents = 'none';
+    map.getPane('heatmapPane').appendChild(this._canvas);
+    map.on('moveend zoomend move zoom', this._redraw, this);
+  },
+
+  onRemove(map) {
+    this._canvas.remove();
+    map.off('moveend zoomend move zoom', this._redraw, this);
+  },
+
+  update(rgba) {
+    this._rgba = rgba;
+    this._redraw();
+  },
+
+  _redraw() {
+    if (!this._rgba || !gridBbox) return;
+    const [minLng, minLat, maxLng, maxLat] = gridBbox;
+
+    const topLeft = this._map.latLngToLayerPoint([maxLat, minLng]);
+    const bottomRight = this._map.latLngToLayerPoint([minLat, maxLng]);
+    const width = Math.round(bottomRight.x - topLeft.x);
+    const height = Math.round(bottomRight.y - topLeft.y);
+
+    this._canvas.width = width;
+    this._canvas.height = height;
+    L.DomUtil.setPosition(this._canvas, topLeft);
+
+    const ctx = this._canvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+
+    const cellW = width / GRID_COLS;
+    const cellH = height / GRID_ROWS;
+
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const canvasRow = GRID_ROWS - 1 - r;
+      for (let c = 0; c < GRID_COLS; c++) {
+        const idx = r * GRID_COLS + c;
+        const pixelBase = idx * 4;
+        const alpha = this._rgba[pixelBase + 3];
+        if (alpha === 0) continue;
+
+        ctx.fillStyle = `rgb(${this._rgba[pixelBase]},${this._rgba[pixelBase + 1]},${this._rgba[pixelBase + 2]})`;
+        ctx.globalAlpha = alpha / 255;
+
+        const px = Math.floor(c * cellW);
+        const py = Math.floor(canvasRow * cellH);
+        const pw = Math.floor((c + 1) * cellW) - px + 1;
+        const ph = Math.floor((canvasRow + 1) * cellH) - py + 1;
+        ctx.fillRect(px, py, pw, ph);
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+});
+
+let heatmapLayer = null;
+let heatmapWorker = null;
+
+const MAX_RADIUS_KM = 1.5;
+const DENSITY_SATURATION = 3;
+
+function initWorker() {
+  heatmapWorker = new Worker('grid-worker.js', { type: 'module' });
+  heatmapWorker.onmessage = ({ data }) => {
+    if (data.type !== 'result') return;
+    heatmapLayer.update(new Uint8ClampedArray(data.rgba));
+  };
+}
+
+async function loadAggregates() {
+  const snapshot = await getDocs(collection(db, COLLECTION));
+
+  const submissions = [];
+  snapshot.forEach(docSnap => {
+    const d = docSnap.data();
+    if (d.lat != null && d.lng != null && d.name) {
+      submissions.push({ lat: d.lat, lng: d.lng, name: d.name });
+    }
+  });
+
+  if (submissions.length === 0) return;
+
+  const registryForWorker = registry.map(({ name, color }) => ({ name, color }));
+  const maskCopy = inTorontoMask.slice();
+
+  heatmapWorker.postMessage({
+    type: 'compute',
+    submissions,
+    registry: registryForWorker,
+    gridBbox,
+    cols: GRID_COLS,
+    rows: GRID_ROWS,
+    maskBuffer: maskCopy.buffer,
+    maxRadiusKm: MAX_RADIUS_KM,
+    densitySaturation: DENSITY_SATURATION,
+  }, [maskCopy.buffer]);
+}
+
 async function loadBoundary() {
   const res = await fetch('data/toronto-boundary.geojson');
   torontoFeature = await res.json();
@@ -86,6 +205,10 @@ async function loadBoundary() {
 }
 
 async function init() {
+  initWorker();
+  heatmapLayer = new HeatmapCanvasLayer();
+  heatmapLayer.addTo(map);
+
   await loadBoundary();
 
   const [neighbourhoodsRes, curatedRes] = await Promise.all([
@@ -100,6 +223,8 @@ async function init() {
     ...entry,
     color: PALETTE[entry.colorIndex],
   }));
+
+  await loadAggregates();
 }
 init();
 
@@ -199,4 +324,73 @@ document.getElementById('btn-cancel-pin').addEventListener('click', () => {
   if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
   pendingPin = null;
   closePicker();
+});
+
+const MAX_SUBMISSIONS_PER_BROWSER = 20;
+
+document.querySelectorAll('.tenure-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    chosenTenure = btn.dataset.tenure;
+    document.querySelectorAll('.tenure-btn').forEach(b => b.classList.toggle('selected', b === btn));
+    updateSubmitEnabled();
+  });
+});
+
+function getUserId() {
+  let id = localStorage.getItem('torontonaming_uuid');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('torontonaming_uuid', id);
+  }
+  return id;
+}
+const userId = getUserId();
+
+function getSubmissionCount() {
+  return Number(localStorage.getItem('torontonaming_submit_count') || '0');
+}
+
+function incrementSubmissionCount() {
+  localStorage.setItem('torontonaming_submit_count', String(getSubmissionCount() + 1));
+}
+
+let lastSubmittedPin = null;
+
+document.getElementById('btn-submit').addEventListener('click', async () => {
+  if (!pendingPin || !chosenName || !chosenTenure) return;
+
+  if (getSubmissionCount() >= MAX_SUBMISSIONS_PER_BROWSER) {
+    showToast("You've submitted the maximum number of answers from this browser.");
+    return;
+  }
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  await addDoc(collection(db, COLLECTION), {
+    lat: pendingPin.lat,
+    lng: pendingPin.lng,
+    name: chosenName,
+    tenure: chosenTenure,
+    browserId: userId,
+    ts: serverTimestamp(),
+  });
+
+  incrementSubmissionCount();
+  lastSubmittedPin = pendingPin;
+
+  closePicker();
+  showToast('Thanks! Your answer has been recorded.');
+
+  btn.disabled = false;
+  btn.textContent = 'Submit my answer';
+
+  await loadAggregates();
+
+  if (pinMarker) map.removeLayer(pinMarker);
+  pinMarker = L.marker(lastSubmittedPin, {
+    icon: L.divIcon({ className: 'pin-marker', html: '<div class="pin-dot pin-dot-mine"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+    interactive: false,
+  }).addTo(map);
 });
