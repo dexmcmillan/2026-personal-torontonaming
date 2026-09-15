@@ -82,3 +82,49 @@ async function init() {
   await loadBoundary();
 }
 init();
+
+let pendingPin = null;
+let pinMarker = null;
+
+const pinIcon = L.divIcon({
+  className: 'pin-marker',
+  html: '<div class="pin-dot"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
+map.on('click', e => {
+  if (!torontoFeature) return; // ignore clicks before boundary has loaded
+  if (!turf.booleanPointInPolygon(turf.point([e.latlng.lng, e.latlng.lat]), torontoFeature)) {
+    showToast("That's outside Toronto — try clicking inside the boundary.");
+    return;
+  }
+
+  pendingPin = { lat: e.latlng.lat, lng: e.latlng.lng };
+
+  if (pinMarker) map.removeLayer(pinMarker);
+  pinMarker = L.marker(e.latlng, { icon: pinIcon, interactive: false }).addTo(map);
+
+  openPicker();
+});
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.remove('hidden');
+  setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+function openPicker() {
+  document.getElementById('picker-modal').classList.remove('hidden');
+}
+
+function closePicker() {
+  document.getElementById('picker-modal').classList.add('hidden');
+}
+
+document.getElementById('btn-cancel-pin').addEventListener('click', () => {
+  if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
+  pendingPin = null;
+  closePicker();
+});

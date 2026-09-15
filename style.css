@@ -248,6 +248,17 @@ button:active {
   animation: spin 0.8s linear infinite;
 }
 
+.pin-marker { background: transparent; border: none; }
+
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e63946;
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px rgba(0,0,0,0.4);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
