@@ -1496,6 +1496,7 @@ map.on('click', e => {
   document.getElementById('picker-step-name').classList.remove('hidden');
   document.getElementById('picker-step-tenure').classList.add('hidden');
   document.getElementById('name-search').value = '';
+  document.querySelectorAll('.tenure-btn').forEach(b => b.classList.remove('selected'));
   updateSubmitEnabled();
   populateNameOptions(pendingPin);
   openPicker();
