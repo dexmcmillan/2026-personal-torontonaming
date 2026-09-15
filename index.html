@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Do You Call Your Neighbourhood?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="header">
+    <h1>What Do You Call Your Neighbourhood?</h1>
+    <p id="question">Drop a pin where you live, then tell us what you call that area.</p>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="picker-modal" class="hidden">
+    <div id="picker-card">
+      <div id="picker-step-name">
+        <p id="picker-prompt">What do you call this area?</p>
+        <input type="text" id="name-search" placeholder="Search nearby names…" autocomplete="off" />
+        <ul id="name-options"></ul>
+      </div>
+      <div id="picker-step-tenure" class="hidden">
+        <p id="tenure-prompt">How long have you lived here?</p>
+        <div id="tenure-options">
+          <button class="tenure-btn" data-tenure="&lt;1">&lt; 1 year</button>
+          <button class="tenure-btn" data-tenure="1-5">1&ndash;5 years</button>
+          <button class="tenure-btn" data-tenure="5-10">5&ndash;10 years</button>
+          <button class="tenure-btn" data-tenure="10+">10+ years</button>
+        </div>
+      </div>
+      <div id="picker-buttons">
+        <button id="btn-submit" disabled>Submit my answer</button>
+        <button id="btn-cancel-pin">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading">
+    <div id="loading-spinner"></div>
+    <h2>What Do You Call Your Neighbourhood?</h2>
+    <p>Loading map&hellip;</p>
+  </div>
+
+  <div id="toast" class="hidden">Thanks! Your answer has been recorded.</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,253 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f0f0f0;
+}
+
+#header {
+  padding: 28px 20px 24px;
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+#header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+#question {
+  font-size: 0.95rem;
+  color: rgba(255,255,255,0.85);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+#map {
+  flex: 1;
+  cursor: crosshair;
+}
+
+#picker-modal {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 8000;
+  pointer-events: none;
+}
+
+#picker-modal.hidden {
+  display: none;
+}
+
+#picker-card {
+  background: #1a1a2e;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px 12px 0 0;
+  padding: 20px 24px;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
+  pointer-events: all;
+}
+
+#picker-step-tenure.hidden,
+#picker-step-name.hidden {
+  display: none;
+}
+
+#picker-prompt,
+#tenure-prompt {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+}
+
+#name-search {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+#name-options {
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+  border-radius: 6px;
+  overflow-x: hidden;
+}
+
+#name-options li {
+  padding: 10px 12px;
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+#name-options li:hover,
+#name-options li.highlighted {
+  background: rgba(255,255,255,0.1);
+}
+
+#name-options li.selected {
+  background: #4a90d9;
+  color: #fff;
+}
+
+#tenure-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tenure-btn {
+  flex: 1 0 40%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tenure-btn.selected {
+  background: #4a90d9;
+  border-color: #4a90d9;
+  color: #fff;
+}
+
+#picker-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+button {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+#btn-submit {
+  background: #4a90d9;
+  color: #fff;
+  flex: 1;
+}
+
+#btn-submit:hover:not(:disabled) {
+  background: #3a7bc8;
+}
+
+#btn-submit:disabled {
+  background: #444;
+  color: rgba(255,255,255,0.4);
+  cursor: default;
+}
+
+#btn-cancel-pin {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+#btn-cancel-pin:hover {
+  background: rgba(255,255,255,0.18);
+}
+
+#toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.1);
+  white-space: nowrap;
+}
+
+#toast.hidden {
+  display: none;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 10000;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.5);
+}
+
+#loading h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+#loading.hidden {
+  display: none;
+}
+
+#loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255,255,255,0.15);
+  border-top-color: #4a90d9;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
