@@ -1,7 +1,7 @@
 // tests/blend.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { idwWeight, computeCellBlend } from '../blend.js';
+import { idwWeight, computeCellBlend, dominantName } from '../blend.js';
 
 test('idwWeight: distance 0 gives weight 1', () => {
   assert.equal(idwWeight(0, 3), 1);
@@ -27,6 +27,38 @@ test('computeCellBlend: returns null when no submissions are within range', () =
   const result = computeCellBlend(cell, submissions, colorLookup, { maxRadiusKm: 1.5, densitySaturation: 3 });
 
   assert.equal(result, null);
+});
+
+test('dominantName: returns null when no submissions are within range', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [{ lat: 44.50, lng: -79.40, name: 'Far' }];
+  assert.equal(dominantName(cell, submissions, 1.5), null);
+});
+
+test('dominantName: a single nearby submission wins', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [{ ...cell, name: 'Solo' }];
+  assert.equal(dominantName(cell, submissions, 1.5), 'Solo');
+});
+
+test('dominantName: a closer name wins over a farther name', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { lat: 43.6505, lng: -79.40, name: 'Closer' },
+    { lat: 43.660, lng: -79.40, name: 'Farther' },
+  ];
+  assert.equal(dominantName(cell, submissions, 1.5), 'Closer');
+});
+
+test('dominantName: many weak-weight submissions of one name still lose to one strong nearby submission of another', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { ...cell, name: 'Strong' }, // distance 0, weight 1
+    { lat: 43.6636, lng: -79.40, name: 'Weak' }, // ~1.49km away, weight ~0.00004
+    { lat: 43.6637, lng: -79.40, name: 'Weak' },
+    { lat: 43.6638, lng: -79.40, name: 'Weak' },
+  ];
+  assert.equal(dominantName(cell, submissions, 1.5), 'Strong');
 });
 
 test('computeCellBlend: a cell exactly at a single submission takes on its full colour', () => {

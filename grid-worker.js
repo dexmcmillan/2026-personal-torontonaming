@@ -1,5 +1,5 @@
 // grid-worker.js
-import { computeCellBlend } from './blend.js';
+import { computeCellBlend, dominantName } from './blend.js';
 
 self.onmessage = ({ data }) => {
   if (data.type !== 'compute') return;
@@ -13,6 +13,7 @@ self.onmessage = ({ data }) => {
   const colorLookup = new Map(registry.map(entry => [entry.name, entry.color]));
 
   const rgba = new Uint8ClampedArray(cols * rows * 4);
+  const names = new Array(cols * rows).fill(null);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -32,8 +33,10 @@ self.onmessage = ({ data }) => {
       rgba[pixelBase + 1] = blend.g;
       rgba[pixelBase + 2] = blend.b;
       rgba[pixelBase + 3] = Math.round(blend.opacity * 255);
+
+      names[idx] = dominantName(cellLatLng, submissions, maxRadiusKm);
     }
   }
 
-  self.postMessage({ type: 'result', rgba: rgba.buffer, submissions: data.submissions }, [rgba.buffer]);
+  self.postMessage({ type: 'result', rgba: rgba.buffer, names }, [rgba.buffer]);
 };

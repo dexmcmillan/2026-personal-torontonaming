@@ -156,11 +156,9 @@ const HeatmapCanvasLayer = L.Layer.extend({
 let nameLabelMarkers = [];
 const LABEL_OPACITY_THRESHOLD = 0.5; // only label cells confident enough to read as "settled"
 
-function updateNameLabels(rgba, submissions) {
+function updateNameLabels(rgba, names) {
   nameLabelMarkers.forEach(m => map.removeLayer(m));
   nameLabelMarkers = [];
-
-  const colorToName = new Map(registry.map(e => [`${e.color.r},${e.color.g},${e.color.b}`, e.name]));
 
   // Group confidently-coloured cells by exact colour, then place one label
   // per connected component so a name isn't repeated dozens of times.
@@ -172,8 +170,7 @@ function updateNameLabels(rgba, submissions) {
     const base = i * 4;
     const alpha = rgba[base + 3] / 255;
     if (alpha < LABEL_OPACITY_THRESHOLD) continue;
-    const key = `${rgba[base]},${rgba[base + 1]},${rgba[base + 2]}`;
-    const name = colorToName.get(key);
+    const name = names[i];
     if (!name) continue;
     confident[i] = 1;
     nameAt[i] = name;
@@ -231,7 +228,7 @@ function initWorker() {
     if (data.type !== 'result') return;
     const rgba = new Uint8ClampedArray(data.rgba);
     heatmapLayer.update(rgba);
-    updateNameLabels(rgba, data.submissions);
+    updateNameLabels(rgba, data.names);
   };
 }
 

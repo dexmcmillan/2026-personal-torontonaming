@@ -36,3 +36,20 @@ export function computeCellBlend(cellLatLng, submissions, colorLookup, { maxRadi
     opacity: Math.min(1, totalWeight / densitySaturation),
   };
 }
+
+export function dominantName(cellLatLng, submissions, maxRadiusKm) {
+  const weightByName = new Map();
+  for (const sub of submissions) {
+    const distanceKm = haversineDistanceKm(cellLatLng, sub);
+    const weight = idwWeight(distanceKm, maxRadiusKm);
+    if (weight <= 0) continue;
+    weightByName.set(sub.name, (weightByName.get(sub.name) || 0) + weight);
+  }
+  if (weightByName.size === 0) return null;
+  let bestName = null;
+  let bestWeight = -Infinity;
+  for (const [name, weight] of weightByName) {
+    if (weight > bestWeight) { bestWeight = weight; bestName = name; }
+  }
+  return bestName;
+}
