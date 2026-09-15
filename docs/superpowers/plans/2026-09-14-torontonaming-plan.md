@@ -1832,7 +1832,7 @@ This task is also where the palette's accessibility requirement from Global Cons
 
 - [ ] **Step 1: Swap to the dark CartoDB basemap and add a labels-only layer**
 
-Replace the `L.tileLayer(...)` call added in Task 7 with:
+Task 7's single `L.tileLayer(...)` call sits *before* the `map.createPane(...)` block (including `labelsPane`) in app.js. The new labels-only layer below needs `labelsPane` to already exist, so first move the existing three `labelsPane` lines (`map.createPane('labelsPane'); map.getPane('labelsPane').style.zIndex = 650; map.getPane('labelsPane').style.pointerEvents = 'none';`) up to immediately before Task 7's tile layer call — `heatmapPane` and `maskPane` creation can stay where they are, only `labelsPane` needs to move. Then replace the `L.tileLayer(...)` call itself with:
 
 ```javascript
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
