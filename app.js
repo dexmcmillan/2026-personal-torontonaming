@@ -41,10 +41,12 @@ map.getPane('labelsPane').style.pointerEvents = 'none';
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
   attribution: 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, and the GIS user community',
   maxZoom: 19,
+  maxNativeZoom: 16,
 }).addTo(map);
 
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: 19,
+  maxNativeZoom: 16,
   pane: 'labelsPane',
 }).addTo(map);
 
@@ -98,16 +100,20 @@ function renderMask() {
 const HeatmapCanvasLayer = L.Layer.extend({
   onAdd(map) {
     this._map = map;
-    this._canvas = L.DomUtil.create('canvas', 'heatmap-canvas');
+    this._canvas = L.DomUtil.create('canvas', 'heatmap-canvas leaflet-zoom-animated');
     this._canvas.style.position = 'absolute';
     this._canvas.style.pointerEvents = 'none';
     map.getPane('heatmapPane').appendChild(this._canvas);
-    map.on('moveend zoomend move zoom', this._redraw, this);
+    map.on('moveend zoomend', this._redraw, this);
+    if (map.options.zoomAnimation) {
+      map.on('zoomanim', this._animateZoom, this);
+    }
   },
 
   onRemove(map) {
     this._canvas.remove();
-    map.off('moveend zoomend move zoom', this._redraw, this);
+    map.off('moveend zoomend', this._redraw, this);
+    map.off('zoomanim', this._animateZoom, this);
   },
 
   update(rgba) {
@@ -115,24 +121,52 @@ const HeatmapCanvasLayer = L.Layer.extend({
     this._redraw();
   },
 
+  // Keeps the canvas visually locked to the basemap during Leaflet's CSS
+  // zoom animation — without this, the canvas only repaints on 'zoomend'
+  // and visibly lags a beat behind the tiles, then snaps into place.
+  // `this._bounds` is the geographic area the canvas currently covers
+  // (set in _redraw), not the whole city — see _redraw for why.
+  _animateZoom(e) {
+    if (!this._bounds) return;
+    const scale = this._map.getZoomScale(e.zoom);
+    const offset = this._map._latLngBoundsToNewLayerBounds(this._bounds, e.zoom, e.center).min;
+    L.DomUtil.setTransform(this._canvas, offset, scale);
+  },
+
   _redraw() {
     if (!this._rgba || !gridBbox) return;
     const [minLng, minLat, maxLng, maxLat] = gridBbox;
 
-    const topLeft = this._map.latLngToLayerPoint([maxLat, minLng]);
-    const bottomRight = this._map.latLngToLayerPoint([minLat, maxLng]);
-    const width = Math.round(bottomRight.x - topLeft.x);
-    const height = Math.round(bottomRight.y - topLeft.y);
+    // Cell size comes from the full Toronto bbox projected at the current
+    // zoom (cells legitimately grow on screen as you zoom in) — but the
+    // canvas element itself is capped to the current viewport's pixel
+    // size, never the whole city's. At deep zoom the whole-city bbox
+    // projects to hundreds of thousands of pixels per side, which exceeds
+    // what browsers allow a <canvas> to be, silently blanking it out.
+    const bboxTopLeft = this._map.latLngToLayerPoint([maxLat, minLng]);
+    const bboxBottomRight = this._map.latLngToLayerPoint([minLat, maxLng]);
+    const fullWidth = bboxBottomRight.x - bboxTopLeft.x;
+    const fullHeight = bboxBottomRight.y - bboxTopLeft.y;
 
-    this._canvas.width = width;
-    this._canvas.height = height;
-    L.DomUtil.setPosition(this._canvas, topLeft);
+    const size = this._map.getSize();
+    const viewportTopLeft = this._map.containerPointToLayerPoint([0, 0]);
+    const viewportBottomRight = L.point(viewportTopLeft.x + size.x, viewportTopLeft.y + size.y);
+
+    this._canvas.width = size.x;
+    this._canvas.height = size.y;
+    L.DomUtil.setPosition(this._canvas, viewportTopLeft);
+    this._bounds = L.latLngBounds(
+      this._map.layerPointToLatLng(viewportTopLeft),
+      this._map.layerPointToLatLng(viewportBottomRight)
+    );
 
     const ctx = this._canvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, size.x, size.y);
 
-    const cellW = width / GRID_COLS;
-    const cellH = height / GRID_ROWS;
+    const cellW = fullWidth / GRID_COLS;
+    const cellH = fullHeight / GRID_ROWS;
+    const offsetX = viewportTopLeft.x - bboxTopLeft.x;
+    const offsetY = viewportTopLeft.y - bboxTopLeft.y;
 
     for (let r = 0; r < GRID_ROWS; r++) {
       const canvasRow = GRID_ROWS - 1 - r;
@@ -142,13 +176,17 @@ const HeatmapCanvasLayer = L.Layer.extend({
         const alpha = this._rgba[pixelBase + 3];
         if (alpha === 0) continue;
 
+        const cellLeft = c * cellW - offsetX;
+        const cellTop = canvasRow * cellH - offsetY;
+        if (cellLeft + cellW < 0 || cellLeft > size.x || cellTop + cellH < 0 || cellTop > size.y) continue;
+
         ctx.fillStyle = `rgb(${this._rgba[pixelBase]},${this._rgba[pixelBase + 1]},${this._rgba[pixelBase + 2]})`;
         ctx.globalAlpha = alpha / 255;
 
-        const px = Math.floor(c * cellW);
-        const py = Math.floor(canvasRow * cellH);
-        const pw = Math.floor((c + 1) * cellW) - px + 1;
-        const ph = Math.floor((canvasRow + 1) * cellH) - py + 1;
+        const px = Math.floor(cellLeft);
+        const py = Math.floor(cellTop);
+        const pw = Math.floor(cellLeft + cellW) - px + 1;
+        const ph = Math.floor(cellTop + cellH) - py + 1;
         ctx.fillRect(px, py, pw, ph);
       }
     }
