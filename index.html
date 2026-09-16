@@ -12,10 +12,14 @@
 <body>
   <div id="header">
     <h1>What Do You Call Your Neighbourhood?</h1>
-    <p id="question">Drop a pin where you live, then tell us what you call that area.</p>
+    <p id="question">Pan the map so the pin sits on your home, then confirm and tell us what you call that area.</p>
   </div>
 
-  <div id="map"></div>
+  <div id="map-wrapper">
+    <div id="map"></div>
+    <div id="center-pin"><div class="pin-dot"></div></div>
+    <button id="btn-confirm-location">Confirm this location</button>
+  </div>
 
   <div id="picker-modal" class="hidden">
     <div id="picker-card">

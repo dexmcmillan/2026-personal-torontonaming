@@ -1,6 +1,7 @@
 // app.js
 import { buildRegistry, assignColors, nearbyNames } from './names.js';
 import { PALETTE } from './palette.js';
+import { weightBreakdown } from './blend.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
@@ -25,6 +26,8 @@ const NEARBY_NAME_COUNT = 12;
 const ASSIGN_COLOR_RADIUS_KM = 3;
 
 let registry = [];
+let colorLookup = new Map();
+let lastSubmissions = [];
 
 const map = L.map('map', {
   zoomControl: true,
@@ -251,6 +254,8 @@ async function loadAggregates() {
     }
   });
 
+  lastSubmissions = submissions;
+
   if (submissions.length === 0) {
     heatmapLayer.update(new Uint8ClampedArray(GRID_COLS * GRID_ROWS * 4));
     updateNameLabels(new Uint8ClampedArray(GRID_COLS * GRID_ROWS * 4), new Array(GRID_COLS * GRID_ROWS).fill(null));
@@ -305,6 +310,7 @@ async function init() {
       ...entry,
       color: PALETTE[entry.colorIndex],
     }));
+    colorLookup = new Map(registry.map(e => [e.name, e.color]));
 
     await loadAggregates();
 
@@ -319,26 +325,17 @@ init();
 let pendingPin = null;
 let pinMarker = null;
 
-const pinIcon = L.divIcon({
-  className: 'pin-marker',
-  html: '<div class="pin-dot"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
-});
-
-map.on('click', e => {
+document.getElementById('btn-confirm-location').addEventListener('click', () => {
   if (!torontoFeature) return;
-  if (!turf.booleanPointInPolygon(turf.point([e.latlng.lng, e.latlng.lat]), torontoFeature)) {
-    showToast("That's outside Toronto — try clicking inside the boundary.");
+  const center = map.getCenter();
+  if (!turf.booleanPointInPolygon(turf.point([center.lng, center.lat]), torontoFeature)) {
+    showToast("That's outside Toronto — pan the map so the pin sits inside the boundary.");
     return;
   }
 
-  pendingPin = { lat: e.latlng.lat, lng: e.latlng.lng };
+  pendingPin = { lat: center.lat, lng: center.lng };
   chosenName = null;
   chosenTenure = null;
-
-  if (pinMarker) map.removeLayer(pinMarker);
-  pinMarker = L.marker(e.latlng, { icon: pinIcon, interactive: false }).addTo(map);
 
   document.getElementById('picker-step-name').classList.remove('hidden');
   document.getElementById('picker-step-tenure').classList.add('hidden');
@@ -361,6 +358,8 @@ function showToast(msg) {
 
 function openPicker() {
   document.getElementById('picker-modal').classList.remove('hidden');
+  document.getElementById('center-pin').classList.add('hidden');
+  document.getElementById('btn-confirm-location').classList.add('hidden');
 }
 
 let chosenName = null;
@@ -409,10 +408,11 @@ function selectName(name) {
 
 function closePicker() {
   document.getElementById('picker-modal').classList.add('hidden');
+  document.getElementById('center-pin').classList.remove('hidden');
+  document.getElementById('btn-confirm-location').classList.remove('hidden');
 }
 
 document.getElementById('btn-cancel-pin').addEventListener('click', () => {
-  if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
   pendingPin = null;
   closePicker();
 });
@@ -490,3 +490,44 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     btn.textContent = 'Submit my answer';
   }
 });
+
+// ── Hover breakdown tooltip ─────────────────────────────────────────────────
+
+function getCellIndexForLatLng(lat, lng) {
+  if (!gridBbox) return null;
+  const [minLng, minLat, maxLng, maxLat] = gridBbox;
+  if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) return null;
+
+  const cellW = (maxLng - minLng) / GRID_COLS;
+  const cellH = (maxLat - minLat) / GRID_ROWS;
+  const c = Math.floor((lng - minLng) / cellW);
+  const r = Math.floor((lat - minLat) / cellH);
+  if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) return null;
+  return r * GRID_COLS + c;
+}
+
+const hoverTooltip = L.tooltip({ direction: 'top', offset: [0, -8], className: 'hover-breakdown', sticky: true });
+
+map.on('mousemove', e => {
+  const idx = getCellIndexForLatLng(e.latlng.lat, e.latlng.lng);
+  if (idx === null || !inTorontoMask[idx]) {
+    map.closeTooltip(hoverTooltip);
+    return;
+  }
+
+  const cellLatLng = { lng: cellCentroids[idx * 2], lat: cellCentroids[idx * 2 + 1] };
+  const breakdown = weightBreakdown(cellLatLng, lastSubmissions, MAX_RADIUS_KM, colorLookup);
+
+  if (breakdown.length === 0) {
+    map.closeTooltip(hoverTooltip);
+    return;
+  }
+
+  const content = breakdown
+    .map(b => `${escapeHtml(b.name)} — ${Math.round(b.percent)}%`)
+    .join('<br>');
+  hoverTooltip.setLatLng(e.latlng).setContent(content);
+  if (!map.hasLayer(hoverTooltip)) hoverTooltip.addTo(map);
+});
+
+map.on('mouseout', () => map.closeTooltip(hoverTooltip));

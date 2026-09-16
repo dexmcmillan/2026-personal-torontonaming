@@ -37,6 +37,23 @@ export function computeCellBlend(cellLatLng, submissions, colorLookup, { maxRadi
   };
 }
 
+export function weightBreakdown(cellLatLng, submissions, maxRadiusKm, colorLookup) {
+  const weightByName = new Map();
+  let totalWeight = 0;
+  for (const sub of submissions) {
+    if (!colorLookup.has(sub.name)) continue;
+    const distanceKm = haversineDistanceKm(cellLatLng, sub);
+    const weight = idwWeight(distanceKm, maxRadiusKm);
+    if (weight <= 0) continue;
+    weightByName.set(sub.name, (weightByName.get(sub.name) || 0) + weight);
+    totalWeight += weight;
+  }
+  if (totalWeight === 0) return [];
+  return [...weightByName.entries()]
+    .map(([name, weight]) => ({ name, percent: (weight / totalWeight) * 100 }))
+    .sort((a, b) => b.percent - a.percent);
+}
+
 export function dominantName(cellLatLng, submissions, maxRadiusKm, colorLookup) {
   const weightByName = new Map();
   for (const sub of submissions) {

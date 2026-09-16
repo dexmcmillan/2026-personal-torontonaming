@@ -1,7 +1,7 @@
 // tests/blend.test.js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { idwWeight, computeCellBlend, dominantName } from '../blend.js';
+import { idwWeight, computeCellBlend, dominantName, weightBreakdown } from '../blend.js';
 
 test('idwWeight: distance 0 gives weight 1', () => {
   assert.equal(idwWeight(0, 3), 1);
@@ -150,4 +150,76 @@ test('computeCellBlend: submissions with a name absent from colorLookup are igno
   const result = computeCellBlend(cell, submissions, colorLookup, { maxRadiusKm: 1.5, densitySaturation: 3 });
 
   assert.equal(result, null);
+});
+
+test('weightBreakdown: returns [] when no submissions are within range', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [{ lat: 44.50, lng: -79.40, name: 'Far' }];
+  const colorLookup = new Map([['Far', { r: 1, g: 1, b: 1 }]]);
+
+  assert.deepEqual(weightBreakdown(cell, submissions, 1.5, colorLookup), []);
+});
+
+test('weightBreakdown: a single contributing name gets 100%', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [{ ...cell, name: 'Solo' }];
+  const colorLookup = new Map([['Solo', { r: 1, g: 1, b: 1 }]]);
+
+  const result = weightBreakdown(cell, submissions, 1.5, colorLookup);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, 'Solo');
+  assert.ok(Math.abs(result[0].percent - 100) < 1e-9);
+});
+
+test('weightBreakdown: two equidistant names split ~50/50 and sum to 100', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { lat: 43.651, lng: -79.40, name: 'North' },
+    { lat: 43.649, lng: -79.40, name: 'South' },
+  ];
+  const colorLookup = new Map([
+    ['North', { r: 1, g: 0, b: 0 }],
+    ['South', { r: 0, g: 0, b: 1 }],
+  ]);
+
+  const result = weightBreakdown(cell, submissions, 1.5, colorLookup);
+
+  assert.equal(result.length, 2);
+  const total = result.reduce((sum, r) => sum + r.percent, 0);
+  assert.ok(Math.abs(total - 100) < 1e-9);
+  result.forEach(r => assert.ok(Math.abs(r.percent - 50) < 1));
+});
+
+test('weightBreakdown: sorted descending by percent, closer name first', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { lat: 43.6505, lng: -79.40, name: 'Closer' },
+    { lat: 43.660, lng: -79.40, name: 'Farther' },
+  ];
+  const colorLookup = new Map([
+    ['Closer', { r: 1, g: 0, b: 0 }],
+    ['Farther', { r: 0, g: 0, b: 1 }],
+  ]);
+
+  const result = weightBreakdown(cell, submissions, 1.5, colorLookup);
+
+  assert.equal(result[0].name, 'Closer');
+  assert.equal(result[1].name, 'Farther');
+  assert.ok(result[0].percent > result[1].percent);
+});
+
+test('weightBreakdown: a name absent from colorLookup is excluded from the breakdown entirely', () => {
+  const cell = { lat: 43.65, lng: -79.40 };
+  const submissions = [
+    { ...cell, name: 'Untrusted' },
+    { lat: 43.660, lng: -79.40, name: 'Registered' },
+  ];
+  const colorLookup = new Map([['Registered', { r: 1, g: 1, b: 1 }]]);
+
+  const result = weightBreakdown(cell, submissions, 1.5, colorLookup);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, 'Registered');
+  assert.ok(Math.abs(result[0].percent - 100) < 1e-9);
 });

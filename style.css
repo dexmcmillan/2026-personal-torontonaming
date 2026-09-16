@@ -37,9 +37,46 @@ body {
   margin-top: 2px;
 }
 
-#map {
+#map-wrapper {
+  position: relative;
   flex: 1;
-  cursor: crosshair;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+}
+
+#center-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 500;
+  pointer-events: none;
+}
+
+#center-pin.hidden {
+  display: none;
+}
+
+#btn-confirm-location {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  background: #4a90d9;
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+}
+
+#btn-confirm-location:hover {
+  background: #3a7bc8;
+}
+
+#btn-confirm-location.hidden {
+  display: none;
 }
 
 #picker-modal {
@@ -286,4 +323,21 @@ button:active {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.8);
   white-space: nowrap;
+}
+
+.hover-breakdown {
+  background: #1a1a2e;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+
+.hover-breakdown::before {
+  display: none;
 }
