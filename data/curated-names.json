@@ -19,6 +19,7 @@
   { "name": "High Park", "lat": 43.6537, "lng": -79.4653 },
   { "name": "Bloor West Village", "lat": 43.6503, "lng": -79.4877 },
   { "name": "The Beaches", "lat": 43.6700, "lng": -79.2989 },
+  { "name": "The Beach", "lat": 43.6700, "lng": -79.2989 },
   { "name": "Greektown", "lat": 43.6786, "lng": -79.3512 },
   { "name": "Church-Wellesley Village", "lat": 43.6656, "lng": -79.3807 },
   { "name": "Regent Park", "lat": 43.6603, "lng": -79.3627 },
