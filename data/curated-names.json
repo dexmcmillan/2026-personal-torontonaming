@@ -28,5 +28,18 @@
   { "name": "Summerhill", "lat": 43.6844, "lng": -79.3925 },
   { "name": "Wychwood", "lat": 43.6797, "lng": -79.4225 },
   { "name": "Casa Loma", "lat": 43.6780, "lng": -79.4094 },
-  { "name": "Baby Point", "lat": 43.6614, "lng": -79.4789 }
+  { "name": "Baby Point", "lat": 43.6614, "lng": -79.4789 },
+  { "name": "Queen West", "lat": 43.6469, "lng": -79.4020 },
+  { "name": "King West", "lat": 43.6444, "lng": -79.4010 },
+  { "name": "Koreatown", "lat": 43.6579, "lng": -79.4177 },
+  { "name": "Corso Italia", "lat": 43.6776, "lng": -79.4453 },
+  { "name": "The Danforth", "lat": 43.6825, "lng": -79.3150 },
+  { "name": "St. James Town", "lat": 43.6708, "lng": -79.3733 },
+  { "name": "Yonge and Eglinton", "lat": 43.7053, "lng": -79.3999 },
+  { "name": "Leaside", "lat": 43.7043, "lng": -79.3646 },
+  { "name": "Harbourfront", "lat": 43.6385, "lng": -79.3781 },
+  { "name": "CityPlace", "lat": 43.6408, "lng": -79.3956 },
+  { "name": "Ossington", "lat": 43.6520, "lng": -79.4200 },
+  { "name": "Swansea", "lat": 43.6478, "lng": -79.4767 },
+  { "name": "Mimico", "lat": 43.6157, "lng": -79.4967 }
 ]
