@@ -41,5 +41,20 @@
   { "name": "CityPlace", "lat": 43.6408, "lng": -79.3956 },
   { "name": "Ossington", "lat": 43.6520, "lng": -79.4200 },
   { "name": "Swansea", "lat": 43.6478, "lng": -79.4767 },
-  { "name": "Mimico", "lat": 43.6157, "lng": -79.4967 }
+  { "name": "Mimico", "lat": 43.6157, "lng": -79.4967 },
+  { "name": "Little Jamaica", "lat": 43.6961, "lng": -79.4436 },
+  { "name": "The Kingsway", "lat": 43.6478, "lng": -79.5089 },
+  { "name": "Don Mills", "lat": 43.7358, "lng": -79.3465 },
+  { "name": "The Bluffs", "lat": 43.7093, "lng": -79.2412 },
+  { "name": "Agincourt", "lat": 43.7854, "lng": -79.2755 },
+  { "name": "Riverside", "lat": 43.6598, "lng": -79.3517 },
+  { "name": "Chinatown East", "lat": 43.6676, "lng": -79.3517 },
+  { "name": "Bloordale", "lat": 43.6604, "lng": -79.4406 },
+  { "name": "Stockyards", "lat": 43.6733, "lng": -79.4720 },
+  { "name": "Port Lands", "lat": 43.6394, "lng": -79.3477 },
+  { "name": "Birch Cliff", "lat": 43.6931, "lng": -79.2687 },
+  { "name": "Seaton Village", "lat": 43.6733, "lng": -79.4177 },
+  { "name": "Harbord Village", "lat": 43.6626, "lng": -79.4041 },
+  { "name": "Deer Park", "lat": 43.6879, "lng": -79.3928 },
+  { "name": "Playter Estates", "lat": 43.6774, "lng": -79.3559 }
 ]
